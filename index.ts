@@ -103,7 +103,7 @@ export const yApiMock = <T = any>(option: YApiMockOption, data?: T) => {
   });
 };
 
-export default function (app: Application, watchFile?: string): ProxyFuncType {
+const mockMiddlewares = (app: Application, watchFile?: string): ProxyFuncType => {
   if (!watchFile) {
     throw new Error('mock配置不存在!');
   }
@@ -193,4 +193,7 @@ export default function (app: Application, watchFile?: string): ProxyFuncType {
   return function (_req, _res, next) {
     next();
   };
-}
+};
+
+export default mockMiddlewares;
+
