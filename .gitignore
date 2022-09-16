@@ -1,0 +1,11 @@
+.idea
+.DS_Store
+.vscode
+node_modules
+dist
+lib
+types
+package-lock.json
+yarn.lock
+index.js
+index.d.ts
