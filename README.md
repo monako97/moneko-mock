@@ -1,0 +1,2 @@
+# moneko-mock
+mock
