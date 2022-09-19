@@ -23,7 +23,7 @@ const conf: MockConfiguration = {
   },
 };
 
-module.exports = { default: conf };
+export default conf;
 
 ```
 
@@ -48,7 +48,7 @@ const conf: MockConfiguration = {
   },
 };
 
-module.exports = { default: conf };
+export default conf;
 
 ```
 
@@ -72,7 +72,7 @@ const conf: MockConfiguration = {
   },
 };
 
-module.exports = { default: conf };
+export default conf;
 
 ```
 
@@ -97,20 +97,20 @@ const conf: MockConfiguration = {
   },
 };
 
-module.exports = { default: conf };
+export default conf;
 
 ```
 
-### 使用YApi Json Schema生成数据
+### 使用 YApi JSON Schema 生成数据
 
 ```typescript
-import { yApiMock } from '@moneko/mock';
+import { yApiSchemaMock } from '@moneko/mock';
 import type { MockConfiguration } from '@moneko/mock';
 
 const getYApiOption = (id: string) => {
   return {
     // yapi host
-    host: 'http://yapihost',
+    host: 'http://yapihost:8080',
     // yapi open api token
     token: 'yapi open api token',
     // yapi 接口id
@@ -120,7 +120,7 @@ const getYApiOption = (id: string) => {
 
 const conf: MockConfiguration = {
   'POST /getids/list':  async (req, res) => {
-    const mockData = await yApiMock(getYApiOption('7610'), {
+    const mockData = await yApiSchemaMock(getYApiOption('7610'), {
       result: {
         page: req.body.pageNum,
         itemsPerPage: req.body.pageSize,
@@ -132,7 +132,33 @@ const conf: MockConfiguration = {
   },
 };
 
-module.exports = { default: conf };
+export default conf;
+
+```
+
+### 使用 YApi 高级Mock
+
+```typescript
+import { yApiMock } from '@moneko/mock';
+import type { MockConfiguration, YApiOption } from '@moneko/mock';
+
+const yApi: YApiOption = {
+  // yapi host
+  host: 'http://yapihost:8080',
+  projectId: 143,
+  pathRewrite: '^/api/',
+};
+
+const conf: MockConfiguration = {
+  'POST /api/getids/list':  async (req, res) => {
+    // 此时 mockData 将是来自 POST http://yapihost:8080/mock/143/getids/list 响应的数据
+    const resp = await yApiMock(req, yApi);
+
+    res.status(200).send(resp);
+  },
+};
+
+export default conf;
 
 ```
 
@@ -149,6 +175,6 @@ const conf: MockConfiguration = {
   },
 };
 
-module.exports = { default: conf };
+export default conf;
 
 ```

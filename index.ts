@@ -17,14 +17,6 @@ export interface RequestFormData extends Request {
   files: Express.Multer.File[];
 }
 export type ProxyFuncType = (req: RequestFormData, res: Response, next: NextFunction) => void;
-export type YApiMockOption = {
-  /** YApi host */
-  host: string;
-  /** 接口id */
-  id: string;
-  /** YApi开放接口token */
-  token: string;
-};
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type MockConfiguration = Record<string, ProxyFuncType | Record<string, any> | null>;
 
@@ -71,8 +63,19 @@ function clearProxy(iproxy: MockConfiguration, path: string, old: MockConfigurat
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const yApiMock = <T = any>(option: YApiMockOption, data?: T) => {
+export type YApiOptionBySchema = {
+  /** YApi host */
+  host: string;
+  /** 接口id */
+  id: string;
+  /** YApi开放接口token */
+  token: string;
+};
+
+/**
+ * 通过 YApi 接口对应的响应JSON Schema生成默认的数据
+ */
+export const yApiSchemaMock = <T = any>(option: YApiOptionBySchema, data?: T) => {
   return new Promise<T>((res, rej) => {
     http.get(`${option.host}/api/interface/get?id=${option.id}&token=${option.token}`, (resp) => {
       resp.setEncoding('utf8');
@@ -100,6 +103,54 @@ export const yApiMock = <T = any>(option: YApiMockOption, data?: T) => {
         }
       });
     });
+  });
+};
+
+export type YApiOption = {
+  /** YApi host */
+  host: string;
+  /** YApi 项目ID */
+  projectId: number;
+  /** 重写请求路径, 例如：'^/api/' */
+  pathRewrite: string;
+};
+
+/**
+ * 请求YApi高级mock接口数据
+ */
+export const yApiMock = (req: RequestFormData, yapi: YApiOption) => {
+  return new Promise((resolve, reject) => {
+    const url = new URL(yapi.host);
+    const options = {
+      hostname: url.hostname,
+      port: url.port,
+      path: req.path.replace(new RegExp(yapi.pathRewrite), `/mock/${yapi.projectId}/`),
+      method: req.method,
+      headers: req.headers,
+      query: req.query,
+    };
+    const request = http.request(options, (resp) => {
+      resp.setEncoding('utf8');
+      let rawData = '';
+
+      resp.on('data', (chunk) => {
+        rawData += chunk;
+      });
+      resp.on('end', () => {
+        try {
+          resolve(JSON.parse(rawData));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+
+    request.on('error', (e) => {
+      reject(e.message);
+    });
+
+    request.write(JSON.stringify(req.body));
+    request.end();
   });
 };
 
