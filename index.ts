@@ -1,21 +1,18 @@
+import http from 'http';
 import { cursorTo } from 'readline';
-import express from 'express';
-import { watch } from 'chokidar';
+import { transformFileSync, type Options } from '@swc/core';
+import { watch, type FSWatcher } from 'chokidar';
+import express, { type Application, type Request, type Response, type NextFunction } from 'express';
+import { mock } from 'mock-json-schema';
 import multer from 'multer';
 import { match } from 'path-to-regexp';
 import { merge } from 'webpack-merge';
-import { mock } from 'mock-json-schema';
-import http from 'http';
-import { transformFileSync } from '@swc/core';
-import type { Application } from 'express';
-import type { FSWatcher } from 'chokidar';
 import type { RequestHandler } from 'serve-static';
-import type { Options } from '@swc/core';
-import type { Request, Response, NextFunction } from 'express';
 
 export interface RequestFormData extends Request {
   files: Express.Multer.File[];
 }
+// eslint-disable-next-line no-unused-vars
 export type ProxyFuncType = (req: RequestFormData, res: Response, next: NextFunction) => void;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type MockConfiguration = Record<string, ProxyFuncType | Record<string, any> | null>;
@@ -24,7 +21,7 @@ const swcOption: Options = {
   inputSourceMap: false,
   sourceMaps: false,
   module: {
-    type: 'commonjs',
+    type: 'es6',
   },
   jsc: {
     parser: {
@@ -34,14 +31,17 @@ const swcOption: Options = {
   },
 };
 
-export const tfc = (filepath: string) => {
-  const out = transformFileSync(filepath, swcOption).code || '{}';
+function esm(templateStrings: TemplateStringsArray, ...substitutions: unknown[]) {
+  let js = templateStrings.raw[0];
 
-  try {
-    return eval(out);
-  } catch (error) {
-    return out;
+  for (let i = 0; i < substitutions.length; i++) {
+    js += substitutions[i] + templateStrings.raw[i + 1];
   }
+  return `data:text/javascript;base64,${Buffer.from(js).toString('base64')}`;
+}
+
+export const tfc = (filepath: string) => {
+  return transformFileSync(filepath, swcOption).code || '{}';
 };
 
 const multipart = multer();
@@ -74,8 +74,12 @@ export type YApiOptionBySchema = {
 
 /**
  * 通过 YApi 接口对应的响应JSON Schema生成默认的数据
+ * @param  {YApiOptionBySchema} option Schema
+ * @param {T} data data
+ * @returns {Promise} mockData
  */
-export const yApiSchemaMock = <T = any>(option: YApiOptionBySchema, data?: T) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const yApiSchemaMock = <T = any>(option: YApiOptionBySchema, data?: T): Promise<any> => {
   return new Promise<T>((res, rej) => {
     http.get(`${option.host}/api/interface/get?id=${option.id}&token=${option.token}`, (resp) => {
       resp.setEncoding('utf8');
@@ -117,6 +121,9 @@ export type YApiOption = {
 
 /**
  * 请求YApi高级mock接口数据
+ * @param {RequestFormData} req req
+ * @param {YApiOption} yapi YApiOption
+ * @returns {Promise} data
  */
 export const yApiMock = (req: RequestFormData, yapi: YApiOption) => {
   return new Promise((resolve, reject) => {
@@ -167,7 +174,7 @@ const mockMiddlewares = (app: Application, watchFile?: string): ProxyFuncType =>
   if (!watcher) {
     // 监听配置入口文件所在的目录
     watcher = watch(watchFile);
-    watcher.on('all', function (event, path) {
+    watcher.on('all', async function (event, path) {
       process.stdout.write('update mock...');
       let np = {};
 
@@ -175,8 +182,7 @@ const mockMiddlewares = (app: Application, watchFile?: string): ProxyFuncType =>
         case 'add':
         case 'change':
           clearProxy(proxy, path, oldMock);
-          np = eval(tfc(path)).default;
-
+          np = (await import(esm`${tfc(path)}`)).default;
           oldMock[path] = np;
           proxy = Object.assign(proxy, np);
           break;
@@ -196,7 +202,7 @@ const mockMiddlewares = (app: Application, watchFile?: string): ProxyFuncType =>
     // 判断下面这种路由
     // => GET /monako_api/:id/:page
     const containMockURL = Object.keys(proxy).filter(function (kname) {
-      return new RegExp('^' + kname.replace(/(:\w*)[^/]/g, '((?!/).)') + '*$').test(proxyURL);
+      return new RegExp(`^${kname.replace(/(:\w*)[^/]/g, '((?!/).)')}*$`).test(proxyURL);
     });
 
     if (proxy[proxyURL] || (containMockURL && containMockURL.length > 0)) {
@@ -247,4 +253,3 @@ const mockMiddlewares = (app: Application, watchFile?: string): ProxyFuncType =>
 };
 
 export default mockMiddlewares;
-
