@@ -125,7 +125,7 @@ export type YApiOption = {
  * @param {YApiOption} yapi YApiOption
  * @returns {Promise} data
  */
-export const yApiMock = (req: RequestFormData, yapi: YApiOption) => {
+export const yApiMock = (req: RequestFormData, yapi: YApiOption): Promise<any> => {
   return new Promise((resolve, reject) => {
     const url = new URL(yapi.host);
     const options = {
